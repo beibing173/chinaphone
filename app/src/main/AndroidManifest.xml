@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ═══════════════════════════════════════════════════════
+         权限说明（重要）
+
+         本 App 申请的权限全部用于「读取本机信息做自查」，
+         不联网、不上传、不修改任何系统状态。
+
+         敏感权限在 Android 6+ 需要运行时授权，
+         Android 11+ 部分权限（如 QUERY_ALL_PACKAGES）
+         还需要系统层的特殊处理，App 会在界面上给出引导。
+         ═══════════════════════════════════════════════════════ -->
+
+    <!-- 应用清单查询：Android 11+ 要读全部应用必须声明这个 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- 应用使用统计（需要用户手动到设置里授予） -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- 设备标识：用于判断哪些应用在读取 IMEI/IMSI -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- 网络状态：仅用于判断哪些应用声明了联网能力，本 App 自身不联网 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ChinaPhone"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.ChinaPhone">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 应用使用统计的授权引导入口 -->
+        <activity
+            android:name=".ui.UsageAccessGuideActivity"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
