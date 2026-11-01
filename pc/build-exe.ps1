@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$OutputDir = "$PSScriptRoot\..\dist",
     [string]$Version = "1.0.0",
     [string]$Configuration = "Release"
@@ -102,6 +102,12 @@ Copy-Item (Join-Path $PSScriptRoot 'README.md') (Join-Path $stageDir 'pc') -Erro
 $readme = @"
 ChinaPhone 手机自查工具  v$Version  （电脑版）
 
+开源地址
+────────
+https://github.com/beibing173/chinaphone
+问题反馈：https://github.com/beibing173/chinaphone/issues
+许可证：MIT License
+
 使用方法
 ────────
 1. 双击 ChinaPhone.exe
@@ -111,17 +117,43 @@ ChinaPhone 手机自查工具  v$Version  （电脑版）
 想只查网络端点：
   在命令行执行  ChinaPhone.exe endpoint
 
+隐私条款
+────────
+一、数据不离机
+   电脑版通过 adb 读取手机信息，所有分析在你自己的电脑上完成。
+   不上传到任何服务器，不收集任何统计数据。
+
+二、只读检查
+   不修改手机任何系统设置，不停用任何应用，不写入手机。
+   报告只写到本地 reports 目录。
+
+三、开源可审计
+   全部源码公开，任何人都可以检查上述说法是否属实。
+   没有隐藏的网络请求，没有遥测。
+
+四、会读取哪些信息
+   · 应用清单（包名、版本、APK 路径）
+   · 应用声明的权限与授予状态
+   · 导出组件（exported 的 Service/Activity）
+   · 设备型号、系统版本、安全补丁级别
+   以上信息只用于本地风险评估，不外传。
+
+五、不会读取的信息
+   · 不读取你的照片、通讯录、短信、聊天记录
+   · 不读取任何应用的用户数据
+   · 不截屏、不录屏
+
 常见问题
 ────────
-• 提示「未检测到设备」
+· 提示「未检测到设备」
   手机需要：设置 → 关于手机 → 连点版本号 7 次
             → 开发人员选项 → 打开「USB 调试」
             → 华为/荣耀还要开「仅充电模式下允许 ADB 调试」
 
-• 提示找不到 adb
+· 提示找不到 adb
   安装 Android SDK Platform-Tools，或把 adb 加入 PATH
 
-• 手机是纯血鸿蒙（HarmonyOS NEXT）
+· 手机是纯血鸿蒙（HarmonyOS NEXT）
   adb 不可用，需用 hdc，本工具暂不支持
 
 免责
