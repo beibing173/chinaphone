@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">手机自查</string>
+    <string name="app_name_full">ChinaPhone 手机自查</string>
+
+    <string name="title_start">检查你的手机里有什么</string>
+    <string name="btn_start">开始检查</string>
+    <string name="title_scanning">正在检查…</string>
+    <string name="btn_rescan">重新检查</string>
+
+    <string name="section_high">高风险组件</string>
+    <string name="section_medium">需关注</string>
+    <string name="section_low">常规组件</string>
+
+    <string name="disclaimer">只读检查，不修改任何设置；数据不上传。</string>
+</resources>
