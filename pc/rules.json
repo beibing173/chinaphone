@@ -1,0 +1,168 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-11-01",
+  "description": "国产 ROM 隐蔽上报/采集组件检测规则库。核心判据来自 2026-11 小米 HyperOS 实测样本（com.miui.guardprovider + com.mobiletools.systemhelper）；可按需增删规则，脚本启动时读取本文件。",
+  "scoring": {
+    "high": 70,
+    "medium": 40,
+    "low": 15
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "运营商 DM 设备管理客户端（包名特征）",
+      "enabled": true,
+      "weight": 80,
+      "type": "package_keyword",
+      "target": "package",
+      "match": "(?i)(systemhelper|dmpackage|dmclient|devicemanage|device_manage|mobiletools|carrierdmp|otamanager|\\bcucc\\b|\\bcmcc\\b|\\bctcc\\b)",
+      "description": "包名命中运营商设备管理(DM)/渠道定制客户端特征。小米样本 SystemHelper = com.mobiletools.systemhelper，实为中国联通 DM 适配方案（vendor/sprd/operator/cucc/prebuild/app/SystemHelper_debug.apk），可按运营商指令远程上报与下发操作。",
+      "advice": "重点核查。非运营商合约机/非本人开通的服务，该组件无正当用途，建议 pm disable-user 停用并记录。"
+    },
+    {
+      "id": "R002",
+      "name": "厂商安全组件 / 应用行为分析模块",
+      "enabled": true,
+      "weight": 65,
+      "type": "package_keyword",
+      "target": "package",
+      "match": "(?i)(guardprovider|securitycenter|security\\.center|frauddetection|antifraud|riskscan|appreport)",
+      "description": "包名命中厂商「安全组件 / 反诈引擎」。小米样本 系统安全组件 = com.miui.guardprovider，会上报第三方应用清单（包名/版本/签名摘要/名称）、扫描截图与仿冒应用上报，并有录屏云检测实现。",
+      "advice": "这类组件通常无法卸载。核对是否在「设置-应用管理」中可停用；重点看它上报了哪些内容。"
+    },
+    {
+      "id": "R003",
+      "name": "位于 priv-app 的高危权限应用",
+      "enabled": true,
+      "weight": 75,
+      "type": "privapp",
+      "target": "package",
+      "match": "",
+      "description": "APK 位于 /system/priv-app、/system_ext/priv-app 或 /product/priv-app，权限高于普通系统应用，且不经过用户安装流程。",
+      "advice": "逐个确认是否为厂商预置必需品。非必要可 pm disable-user --user 0 停用（无需 root），停用前记录包名以便回滚。"
+    },
+    {
+      "id": "R004",
+      "name": "超权限组合：电话状态 + 应用枚举 + 后台运行",
+      "enabled": true,
+      "weight": 90,
+      "type": "permission_combo",
+      "target": "package",
+      "match": [
+        "READ_PHONE_STATE",
+        "QUERY_ALL_PACKAGES",
+        "PACKAGE_USAGE_STATS"
+      ],
+      "description": "同时具备读取电话状态（含 IMEI/IMSI/ICCID 能力）、枚举全部已安装应用、读取应用使用统计三项权限。这三项叠加即可复现小米样本的「应用列表 + 设备/SIM 标识关联上报」能力。",
+      "advice": "最高优先级核查。看它是否有正当用户可见功能；国内合规应用不应静默持有该组合。"
+    },
+    {
+      "id": "R005",
+      "name": "录音/录屏 + 应用枚举组合",
+      "enabled": true,
+      "weight": 88,
+      "type": "permission_combo",
+      "target": "package",
+      "match": [
+        "RECORD_AUDIO",
+        "QUERY_ALL_PACKAGES"
+      ],
+      "description": "同时具备录音与全量应用枚举能力。小米样本的录屏采集链路（720x1280 24fps → 私有缓存 → Base64 → 加密上传 → 等风控回执，未命中则删除重录）依赖此类能力。",
+      "advice": "核查是否有用户可感知的录音/录屏场景。系统组件持有该组合且无用户界面时风险极高。"
+    },
+    {
+      "id": "R006",
+      "name": "运营商 DM 端点（明文 HTTP）",
+      "enabled": true,
+      "weight": 85,
+      "type": "endpoint_domain",
+      "target": "endpoint",
+      "match": "(?i)(dm\\.wo\\.com\\.cn|dm\\.10086\\.cn|dm\\.ctcc|dm\\.cmcc|dm\\.189\\.cn|devicemanage.*\\.(com|cn))",
+      "description": "命中运营商设备管理(DM)平台域名。小米样本回连地址为 http://dm.wo.com.cn:18080/register —— 中国联通 DM 平台，且是明文 HTTP。",
+      "advice": "明文 HTTP 上报意味着链路上可被任意节点读取。确认该注册行为是否是本人开通的服务。"
+    },
+    {
+      "id": "R007",
+      "name": "厂商遥测/诊断端点",
+      "enabled": true,
+      "weight": 45,
+      "type": "endpoint_domain",
+      "target": "endpoint",
+      "match": "(?i)(tracking\\.miui\\.com|diagnosis\\.ad\\.xiaomi\\.com|port\\.sec\\.miui\\.com|flash\\.sec\\.miui\\.com|fraud-detection|logservice\\.hicloud\\.com|metrics.*hicloud|appanalytics)",
+      "description": "命中厂商遥测/诊断/安全上报端点。属于常规遥测范畴，但若与高危权限组合同时命中，则需升级处置。",
+      "advice": "常规遥测通常可在系统设置里关闭「用户体验改进计划」「诊断数据上报」。"
+    },
+    {
+      "id": "R008",
+      "name": "导出面：无权限保护的 Service/Activity",
+      "enabled": true,
+      "weight": 60,
+      "type": "exported_component",
+      "target": "component",
+      "match": "",
+      "description": "组件声明 exported=true 且未设置 permission 保护，任意第三方应用可 bind/拉起。小米样本 SystemHelper 的 RegisterHelperService 任意应用可 bind，另有 TestActivity 直接 exported。",
+      "advice": "这是本地提权/横向利用的入口。非必要不应导出；可反馈厂商或停用对应组件。"
+    },
+    {
+      "id": "R009",
+      "name": "双 ELAPSED_WAKEUP 闹钟常驻",
+      "enabled": true,
+      "weight": 55,
+      "type": "alarm_pattern",
+      "target": "package",
+      "match": "ELAPSED_WAKEUP",
+      "description": "存在多个 ELAPSED_WAKEUP 类型的周期性闹钟。小米样本用两个常驻闹钟分别负责「信号上报」与「定时注册」，且 appLaunchCount=0 —— 用户从未打开过该应用，纯靠闹钟保活。",
+      "advice": "结合 appLaunchCount 判断：用户从未主动打开却长期保活的应用，属于隐蔽常驻。"
+    },
+    {
+      "id": "R010",
+      "name": "后台定位 + 设备标识组合",
+      "enabled": true,
+      "weight": 70,
+      "type": "permission_combo",
+      "target": "package",
+      "match": [
+        "ACCESS_BACKGROUND_LOCATION",
+        "READ_PHONE_STATE"
+      ],
+      "description": "同时具备后台定位与设备标识读取能力。小米样本 SystemHelper 内置百度定位 SDK（硬编码 API key），并在后台上报定位。",
+      "advice": "核查后台定位的必要性。系统组件内置第三方地图 SDK 属异常设计。"
+    },
+    {
+      "id": "R011",
+      "name": "可安装应用的系统组件",
+      "enabled": true,
+      "weight": 65,
+      "type": "permission_keyword",
+      "target": "package",
+      "match": "(?i)(REQUEST_INSTALL_PACKAGES)",
+      "description": "具备静默/引导安装应用的能力。运营商 DM 客户端的典型能力之一是远程下发安装包。",
+      "advice": "系统组件持有该权限即可绕过应用商店装应用，需确认来源可信。"
+    },
+    {
+      "id": "R012",
+      "name": "读取短信/通话记录的系统组件",
+      "enabled": true,
+      "weight": 75,
+      "type": "permission_combo",
+      "target": "package",
+      "match": [
+        "READ_SMS",
+        "READ_CALL_LOG"
+      ],
+      "description": "同时可读短信与通话记录。学术研究记录过类似组件将通话时长、响铃时间、最后联系时间上报后端的行为。",
+      "advice": "极高敏感权限。核查该组件是否为主流短信/电话应用；否则建议停用。"
+    },
+    {
+      "id": "R013",
+      "name": "纯净模式/安装器层面的加固绕过指标",
+      "enabled": true,
+      "weight": 40,
+      "type": "package_keyword",
+      "target": "package",
+      "match": "(?i)(cleanmaster|purifier|cloudcontrol|appstore|market)",
+      "description": "厂商应用市场/纯净模式相关组件。会参与应用安装审核，也可能上报安装行为。",
+      "advice": "属于常规组件，但可留意其上报策略。"
+    }
+  ]
+}
