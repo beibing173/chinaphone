@@ -36,6 +36,7 @@ fun ChinaPhoneApp() {
     var scanning by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0 to 0) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showAbout by remember { mutableStateOf(false) }
 
     fun startScan() {
         if (scanning) return
@@ -55,6 +56,12 @@ fun ChinaPhoneApp() {
         }
     }
 
+    // 关于页（隐私条款 / 权限 / 开源地址）
+    if (showAbout) {
+        AboutScreen(onBack = { showAbout = false })
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -65,6 +72,14 @@ fun ChinaPhoneApp() {
                             "检查隐蔽上报组件",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showAbout = true }) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = "关于 / 隐私条款"
                         )
                     }
                 },
