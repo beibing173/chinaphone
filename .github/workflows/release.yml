@@ -264,7 +264,10 @@ jobs:
             echo ""
             echo "### 本次变更"
             echo ""
-            git log ${LOG_RANGE} --pretty=format:"- %s (%h)" --no-merges | head -n 40 || true
+            # 关键：GitHub 会把 @xxx 渲染成用户提及并弹出用户卡片。
+            # 提交信息里若出现 @hide、@Override 之类的词会被误认成提及，
+            # 所以这里把所有 @ 转义成全角 ＠，避免无关用户被牵扯进来。
+            git log ${LOG_RANGE} --pretty=format:"- %s (%h)" --no-merges | head -n 40 | sed 's/@/＠/g' || true
             echo ""
             echo ""
             echo "---"
