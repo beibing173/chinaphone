@@ -189,32 +189,31 @@ class AuditEngine(private val context: Context) {
     ): List<ExportedComponent> {
         val result = mutableListOf<ExportedComponent>()
 
-        // 只有 Accessible 到组件信息时才有效。第三方应用通常看不到别人的组件，
-        // 但能看到系统应用的部分导出组件。
+        // 说明：
+        // pkg.activities / services / receivers 的元素本身就是 ActivityInfo /
+        // ServiceInfo / ReceiverInfo（它们都继承 ComponentInfo），没有 .info 属性。
+        // 只有 actions / providers 这类才是 PackageInfo 包装类型。
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pkg.activities?.forEach { act ->
-                    val info = act.info ?: return@forEach
+                pkg.activities?.forEach { info ->
                     val exported = (info.flags and android.content.pm.ActivityInfo.FLAG_EXPORTED) != 0 ||
                         info.exported
                     if (exported && info.permission == null) {
-                        result.add(ExportedComponent(act.name, "Activity"))
+                        result.add(ExportedComponent(info.name ?: "", "Activity"))
                     }
                 }
-                pkg.services?.forEach { svc ->
-                    val info = svc.info ?: return@forEach
+                pkg.services?.forEach { info ->
                     val exported = info.exported ||
                         (info.flags and android.content.pm.ServiceInfo.FLAG_EXPORTED) != 0
                     if (exported && info.permission == null) {
-                        result.add(ExportedComponent(svc.name, "Service"))
+                        result.add(ExportedComponent(info.name ?: "", "Service"))
                     }
                 }
-                pkg.receivers?.forEach { rcv ->
-                    val info = rcv.info ?: return@forEach
+                pkg.receivers?.forEach { info ->
                     val exported = (info.flags and android.content.pm.ActivityInfo.FLAG_EXPORTED) != 0 ||
                         info.exported
                     if (exported && info.permission == null) {
-                        result.add(ExportedComponent(rcv.name, "Receiver"))
+                        result.add(ExportedComponent(info.name ?: "", "Receiver"))
                     }
                 }
             }
