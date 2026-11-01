@@ -58,11 +58,13 @@ $args = @(
     '/target:exe',
     '/platform:anycpu',
     '/optimize+',
-    "/out:`"$exePath`"",
+    # 注意：PowerShell 用 & 调用外部程序时会对含空格的参数自动加引号，
+    # 这里不能再手写引号，否则会变成双重引号（CS2021 路径无效）。
+    "/out:$exePath",
     '/reference:System.dll',
     '/reference:System.Core.dll',
     '/reference:System.Windows.Forms.dll',
-    "/win32icon:`"$PSScriptRoot\launcher\app.ico`""
+    "/win32icon:$PSScriptRoot\launcher\app.ico"
 )
 
 # 图标不存在就跳过，别让编译失败
@@ -70,7 +72,7 @@ if (-not (Test-Path "$PSScriptRoot\launcher\app.ico")) {
     $args = $args | Where-Object { $_ -notlike '/win32icon:*' }
 }
 
-$args += "`"$srcFile`""
+$args += $srcFile
 
 Write-Host "编译中…" -ForegroundColor DarkGray
 $compileOut = & $csc @args 2>&1
