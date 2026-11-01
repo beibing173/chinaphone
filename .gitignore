@@ -1,0 +1,18 @@
+﻿# Android 源码构建产物
+*.apk
+*.aab
+*.dex
+*.class
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
+# 临时文件
+*.log
+tmp/
+temp/
+
+dist/
+reports/
+
