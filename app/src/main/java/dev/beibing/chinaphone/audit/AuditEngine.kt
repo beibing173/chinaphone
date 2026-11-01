@@ -190,29 +190,26 @@ class AuditEngine(private val context: Context) {
         val result = mutableListOf<ExportedComponent>()
 
         // 说明：
-        // pkg.activities / services / receivers 的元素本身就是 ActivityInfo /
-        // ServiceInfo / ReceiverInfo（它们都继承 ComponentInfo），没有 .info 属性。
-        // 只有 actions / providers 这类才是 PackageInfo 包装类型。
+        // 1. pkg.activities / services / receivers 的元素本身就是 ActivityInfo /
+        //    ServiceInfo / ReceiverInfo（都继承 ComponentInfo），没有 .info 属性；
+        //    只有 actions / providers 这类才是 PackageInfo 包装类型。
+        // 2. ActivityInfo.FLAG_EXPORTED 是 @hide 的内部常量，公开 SDK 里没有。
+        //    公开 API 只有 ComponentInfo.exported 布尔字段（API 33+），
+        //    所以这里只用 exported，代码块本身已限定 TIRAMISU+。
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pkg.activities?.forEach { info ->
-                    val exported = (info.flags and android.content.pm.ActivityInfo.FLAG_EXPORTED) != 0 ||
-                        info.exported
-                    if (exported && info.permission == null) {
+                    if (info.exported && info.permission == null) {
                         result.add(ExportedComponent(info.name ?: "", "Activity"))
                     }
                 }
                 pkg.services?.forEach { info ->
-                    val exported = info.exported ||
-                        (info.flags and android.content.pm.ServiceInfo.FLAG_EXPORTED) != 0
-                    if (exported && info.permission == null) {
+                    if (info.exported && info.permission == null) {
                         result.add(ExportedComponent(info.name ?: "", "Service"))
                     }
                 }
                 pkg.receivers?.forEach { info ->
-                    val exported = (info.flags and android.content.pm.ActivityInfo.FLAG_EXPORTED) != 0 ||
-                        info.exported
-                    if (exported && info.permission == null) {
+                    if (info.exported && info.permission == null) {
                         result.add(ExportedComponent(info.name ?: "", "Receiver"))
                     }
                 }
