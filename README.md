@@ -1,10 +1,30 @@
 # ChinaPhone 手机自查工具
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/beibing173/chinaphone)](https://github.com/beibing173/chinaphone/releases)
+[![Build](https://github.com/beibing173/chinaphone/actions/workflows/release.yml/badge.svg)](https://github.com/beibing173/chinaphone/actions/workflows/release.yml)
+
 用自己的设备查自己的手机 —— 检查是否存在类似小米 HyperOS 上
 `com.miui.guardprovider`（系统安全组件）+ `com.mobiletools.systemhelper`（SystemHelper）
 那种「隐蔽上报应用列表 / 设备标识 / 录屏」的组件。
 
 **提供两个版本，各取所需。**
+
+---
+
+## 灵感来源
+
+> 本项目源于 2026 年 11 月 X 平台上的两条公开实测推文。
+> 完整原文见 [docs/inspiration.md](docs/inspiration.md)，
+> 致谢与第三方来源见 [NOTICE.md](NOTICE.md)。
+
+| 作者 | 内容 | 原帖 |
+| --- | --- | --- |
+| **@MEterminator666**（MeT） | 小米 14 隐蔽上报的首次排查 | [x.com/MeTerminator666/status/2116504516317376942](https://x.com/MeTerminator666/status/2116504516317376942) |
+| **@Verluntas**（白雨禾） | 拆解 SystemHelper，确认包名与行为 | [x.com/Verluntas/status/2116608387500978522](https://x.com/Verluntas/status/2116608387500978522) |
+
+> 推文里提出的核心问题：**为什么一个人装了 X / Telegram，
+> 会被打电话要求卸载？** 排查结果是手机上有一组预装组件在主动上报应用列表。
 
 ---
 
@@ -161,3 +181,33 @@ keystore/                    签名密钥（保证版本可覆盖升级）
 报告是「需要进一步确认」的信号，请结合厂商公开说明与自身使用场景判断。
 
 **不提供不建议**修改系统分区的操作。
+
+---
+
+## 出处与致谢
+
+本项目的判据全部来自公开资料，主要来源：
+
+| 类型 | 来源 |
+| --- | --- |
+| **原帖** | [@MEterminator666 排查帖](https://x.com/MeTerminator666/status/2116504516317376942) · [@Verluntas 拆解帖](https://x.com/Verluntas/status/2116608387500978522) |
+| **运营商规范** | [中国联通 Android 终端 DM 适配使用指南](https://bbs.16rd.com/thread-583828-1-1.html) |
+| **厂商文档** | [华为《关于智能检测与隐私的声明》](https://terms-dra.platform.dbankcloud.com/agreement/scope/huawei/hiviewcare/privacy-statement/cn_b0_20251010_2/default/privacy-statement-zh-cn.htm) |
+| **学术研究** | [爱丁堡大学 Liu H. 2023](https://era.ed.ac.uk/bitstream/handle/1842/41248/LiuH_2023.pdf) · [台灣資安研究](http://www.twisc.org/tw/wp-content/uploads/2020/09/手機資料異常行為分析相關研究.pdf) |
+| **社区实测** | [NGA 讨论](https://ngabbs.com/read.php?tid=35273994) · [阿里云隐私告警](https://help.aliyun.com/zh/document_detail/616139.html) |
+
+完整的来源清单、可信度分级（A/B/C）与引用规范见 **[NOTICE.md](NOTICE.md)**。
+推文原文照录见 **[docs/inspiration.md](docs/inspiration.md)**。
+判据逐条溯源见 **[docs/evidence.md](docs/evidence.md)**。
+
+特别感谢 **@MEterminator666** 与 **@Verluntas** 把排查过程公开 ——
+没有那两条推文，就没有这个项目。
+
+---
+
+## 许可证
+
+[MIT License](LICENSE) © 2026 beibing173
+
+> 说明：MIT 适用于**代码**。文档中引用的推文原文、第三方手册、学术论文等，
+> 版权归原作者所有，本项目仅作技术研究引用并标注来源。
