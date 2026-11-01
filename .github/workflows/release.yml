@@ -1,0 +1,336 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      force_recreate:
+        description: '强制重建 Release（即使同版本已存在）'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ═══════════════════════════════════════════════════════════
+  # 1. 读取版本号，决定发布策略
+  # ═══════════════════════════════════════════════════════════
+  prepare:
+    name: 读取版本号
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      version_code: ${{ steps.ver.outputs.version_code }}
+      tag: ${{ steps.ver.outputs.tag }}
+      release_exists: ${{ steps.check.outputs.exists }}
+      strategy: ${{ steps.decide.outputs.strategy }}
+      release_id: ${{ steps.check.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 读取版本号
+        id: ver
+        run: |
+          chmod +x scripts/version.sh
+          ./scripts/version.sh validate
+          VERSION="$(./scripts/version.sh name)"
+          CODE="$(./scripts/version.sh code)"
+          TAG="$(./scripts/version.sh tag)"
+          echo "version=$VERSION"       >> "$GITHUB_OUTPUT"
+          echo "version_code=$CODE"     >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"               >> "$GITHUB_OUTPUT"
+          echo "版本: $VERSION (code=$CODE, tag=$TAG)"
+
+      - name: 检查该版本 Release 是否已存在
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            ID="$(gh release view "$TAG" --repo "${{ github.repository }}" --json databaseId -q .databaseId)"
+            echo "release_id=$ID" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release $TAG 已存在 (id=$ID)，将覆盖上传"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "release_id=" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release $TAG 不存在，将新建"
+          fi
+
+      - name: 决定发布策略
+        id: decide
+        run: |
+          # 同版本存在 → overwrite（覆盖资产，更新说明）
+          # 同版本不存在 → create（新建 Release）
+          if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
+            echo "strategy=overwrite" >> "$GITHUB_OUTPUT"
+            echo "::notice::策略: 覆盖已存在的 v${{ steps.ver.outputs.version }}"
+          else
+            echo "strategy=create" >> "$GITHUB_OUTPUT"
+            echo "::notice::策略: 创建新的 v${{ steps.ver.outputs.version }}"
+          fi
+
+  # ═══════════════════════════════════════════════════════════
+  # 2. 构建安卓 APK
+  # ═══════════════════════════════════════════════════════════
+  build-apk:
+    name: 构建 APK
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 设置 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 缓存 Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: 生成签名密钥（若仓库未提供）
+        run: |
+          mkdir -p keystore
+          if [ ! -f keystore/chinaphone.jks ]; then
+            echo "生成默认签名密钥（与仓库内一致，保证版本可覆盖升级）"
+            keytool -genkeypair \
+              -keystore keystore/chinaphone.jks \
+              -storetype JKS \
+              -storepass chinaphone \
+              -keypass chinaphone \
+              -alias chinaphone \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 36500 \
+              -dname "CN=ChinaPhone, OU=Dev, O=beibing, L=Unknown, ST=Unknown, C=CN"
+          fi
+
+      - name: 构建 Release APK
+        run: |
+          # 不依赖 gradle wrapper：直接安装 Gradle，避免仓库内 jar 版本问题
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt
+          export PATH="/opt/gradle-8.9/bin:$PATH"
+          gradle --version
+          gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: 定位 APK
+        id: apk
+        run: |
+          APK="$(find app/build/outputs/apk/release -name '*.apk' | head -n1)"
+          if [ -z "$APK" ]; then
+            echo "::error::未找到 APK 产物"
+            ls -R app/build/outputs || true
+            exit 1
+          fi
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$APK")" >> "$GITHUB_OUTPUT"
+          ls -lh "$APK"
+
+      - name: 上传 APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════
+  # 3. 构建 Windows EXE
+  # ═══════════════════════════════════════════════════════════
+  build-exe:
+    name: 构建 EXE
+    runs-on: windows-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 打包 EXE
+        shell: pwsh
+        run: |
+          # 确保脚本带 BOM（PowerShell 5.1 读中文需要）
+          .\pc\_ensure-bom.ps1 -Root "$PWD\pc"
+          .\pc\build-exe.ps1 -Version "${{ needs.prepare.outputs.version }}" -OutputDir "$PWD\dist"
+
+      - name: 上传 EXE 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: exe
+          path: |
+            dist/ChinaPhone.exe
+            dist/ChinaPhone-PC-v*.zip
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════
+  # 4. 生成更新日志并发布
+  # ═══════════════════════════════════════════════════════════
+  release:
+    name: 发布 Release
+    runs-on: ubuntu-latest
+    needs: [ prepare, build-apk, build-exe ]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 下载全部产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 整理产物
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name '*.apk' -o -name '*.exe' -o -name '*.zip' \) \
+            -exec cp {} release-assets/ \;
+          echo "=== 待发布文件 ==="
+          ls -lh release-assets/
+
+      - name: 计算校验和
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt 2>/dev/null || true
+          cat SHA256SUMS.txt || true
+
+      - name: 生成 Release 说明文件
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          VERSION_CODE: ${{ needs.prepare.outputs.version_code }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          base="https://github.com/${REPO}/releases/download/${TAG}"
+
+          PREV="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo '')"
+          if [ -n "$PREV" ]; then
+            COMPARE="https://github.com/${REPO}/compare/${PREV}...${TAG}"
+            PREV_LINE="对比上次发布：[${PREV} → ${TAG}](${COMPARE})"
+            LOG_RANGE="${PREV}..HEAD"
+          else
+            PREV_LINE="首次发布"
+            LOG_RANGE="HEAD"
+          fi
+
+          {
+            echo "## 版本 v${VERSION}"
+            echo ""
+            echo "\`versionName\` **${VERSION}** · \`versionCode\` **${VERSION_CODE}**"
+            echo ""
+            echo "${PREV_LINE}"
+            echo ""
+            echo "### 本次变更"
+            echo ""
+            git log ${LOG_RANGE} --pretty=format:"- %s (%h)" --no-merges | head -n 40 || true
+            echo ""
+            echo ""
+            echo "---"
+            echo ""
+            echo "## 下载"
+            echo ""
+            echo "| 平台 | 文件 | 说明 |"
+            echo "| --- | --- | --- |"
+            echo "| 🖥️ **Windows** | [ChinaPhone.exe](${base}/ChinaPhone.exe) | 单文件启动器，双击即用 |"
+            echo "| 🖥️ **Windows** | [ChinaPhone-PC-v${VERSION}.zip](${base}/ChinaPhone-PC-v${VERSION}.zip) | 完整包，含脚本与说明（推荐） |"
+            echo "| 📱 **Android** | [ChinaPhone-v${VERSION}.apk](${base}/ChinaPhone-v${VERSION}.apk) | 手机装这个，不需要电脑 |"
+            echo ""
+            echo "> **Windows 版**：需要手机开 USB 调试并连电脑，依赖 adb。"
+            echo "> **安卓版**：不需要电脑、不需要 USB 调试，装上直接跑。"
+            echo ""
+            echo "---"
+            echo ""
+            echo "## 这个工具查什么"
+            echo ""
+            echo "检查手机里是否存在类似小米 HyperOS 上"
+            echo "\`com.miui.guardprovider\`（系统安全组件）和"
+            echo "\`com.mobiletools.systemhelper\`（SystemHelper）"
+            echo "那种隐蔽上报应用列表、设备标识、甚至录屏的组件。"
+            echo ""
+            echo "**只读检查** —— 不修改任何设置，不联网不上传。"
+            echo ""
+            echo "## 说明"
+            echo ""
+            echo "- 结果是启发式判断，命中规则 ≠ 恶意"
+            echo "- 厂商常规遥测、应用商店、推送服务都可能命中中低风险"
+            echo "- 想拿铁证需要抓包，本工具做不到"
+            echo ""
+            echo "<details>"
+            echo "<summary>文件校验（SHA256）</summary>"
+            echo ""
+            echo '```'
+            cat release-assets/SHA256SUMS.txt 2>/dev/null || echo "（未生成）"
+            echo '```'
+            echo ""
+            echo "</details>"
+          } > RELEASE_BODY.md
+
+          echo "=== 生成的说明 ==="
+          cat RELEASE_BODY.md
+
+      - name: 新建 Release
+        if: needs.prepare.outputs.strategy == 'create'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ needs.prepare.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --title "v${{ needs.prepare.outputs.version }}" \
+            --notes-file RELEASE_BODY.md \
+            --latest \
+            release-assets/*
+
+      - name: 覆盖已存在的 Release
+        if: needs.prepare.outputs.strategy == 'overwrite'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          # 先删掉旧资产，避免同名冲突
+          gh release view "$TAG" --repo "${{ github.repository }}" --json assets \
+            -q '.assets[].name' | while read -r name; do
+              [ -n "$name" ] && gh release delete-asset "$TAG" "$name" --repo "${{ github.repository }}" --yes || true
+            done
+          # 更新说明
+          gh release edit "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "v${{ needs.prepare.outputs.version }}" \
+            --notes-file RELEASE_BODY.md \
+            --latest
+          # 上传新资产
+          gh release upload "$TAG" release-assets/* --repo "${{ github.repository }}" --clobber
+
+      - name: 发布结果
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          URL="$(gh release view "$TAG" --repo "${{ github.repository }}" --json url -q .url)"
+          echo "::notice::Release 已发布: $URL"
+          {
+            echo "### ✅ Release 已发布"
+            echo ""
+            echo "**版本**: v${{ needs.prepare.outputs.version }} (code ${{ needs.prepare.outputs.version_code }})"
+            echo "**策略**: ${{ needs.prepare.outputs.strategy }}"
+            echo ""
+            echo "**地址**: $URL"
+          } >> "$GITHUB_STEP_SUMMARY"
