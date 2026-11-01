@@ -8,8 +8,8 @@ plugins {
 // CI 会自动读取 versionName 作为 Release 标签；
 // 改版本号 = 发新版。versionCode 必须单调递增。
 // ─────────────────────────────────────────────────────────────
-val appVersionCode = 1
-val appVersionName = "1.0.0"
+val appVersionCode = 2
+val appVersionName = "1.0.1"
 
 android {
     namespace = "dev.beibing.chinaphone"
@@ -68,6 +68,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
