@@ -231,8 +231,6 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
 
 @Composable
 private fun ResultView(result: ScanResult, context: Context, onRescan: () -> Unit) {
-    var showAllLow by remember { mutableStateOf(false) }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -246,9 +244,9 @@ private fun ResultView(result: ScanResult, context: Context, onRescan: () -> Uni
                 else -> RiskColors.low
             }
             val verdictText = when {
-                result.high.isNotEmpty() -> "发现 ${result.high.size} 个高风险组件"
+                result.high.isNotEmpty() -> "发现 ${result.high.size} 个隐蔽组件"
                 result.medium.isNotEmpty() -> "发现 ${result.medium.size} 个需关注的组件"
-                else -> "未发现明显可疑组件"
+                else -> "未发现可疑的隐蔽组件"
             }
             Card(
                 colors = CardDefaults.cardColors(containerColor = verdictColor.copy(alpha = 0.12f)),
@@ -263,11 +261,47 @@ private fun ResultView(result: ScanResult, context: Context, onRescan: () -> Uni
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "共扫描 ${result.totalApps} 个应用" +
-                            "（系统 ${result.systemApps} / 用户 ${result.userApps}）",
+                        "共检查 ${result.totalApps} 个应用，" +
+                            "其中 ${result.skippedNormal} 个是你能看到的正常应用（已排除）",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (result.skippedCore > 0) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "另有 ${result.skippedCore} 个核心系统组件已跳过",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── 说明：为什么只显示这几个 ──
+        if (result.findings.isEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("这台手机很干净", fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "没有发现「用户看不见、又有上报能力」的组件。\n\n" +
+                                "本工具只报告「隐藏起来的」组件 —— " +
+                                "你装的应用、带图标的系统应用都算正常，不会列出来。",
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp
+                        )
+                    }
                 }
             }
         }
@@ -351,36 +385,17 @@ private fun ResultView(result: ScanResult, context: Context, onRescan: () -> Uni
 
         // ── 高风险 ──
         if (result.high.isNotEmpty()) {
-            item { SectionHeader("高风险组件", result.high.size, RiskColors.high) }
+            item { SectionHeader("隐蔽组件（优先看）", result.high.size, RiskColors.high) }
             items(result.high) { FindingCard(it) }
         }
 
         // ── 中风险 ──
         if (result.medium.isNotEmpty()) {
-            item { SectionHeader("需关注", result.medium.size, RiskColors.medium) }
+            item { SectionHeader("值得了解", result.medium.size, RiskColors.medium) }
             items(result.medium) { FindingCard(it) }
         }
 
-        // ── 低风险（可折叠）──
-        if (result.low.isNotEmpty()) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SectionHeader("常规组件", result.low.size, RiskColors.low)
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { showAllLow = !showAllLow }) {
-                        Text(if (showAllLow) "收起" else "展开")
-                    }
-                }
-            }
-            if (showAllLow) {
-                items(result.low) { FindingCard(it, compact = true) }
-            }
-        }
+        // 低风险已在前置过滤中排除，不展示
 
         // ── 底部说明 ──
         item {
@@ -392,13 +407,15 @@ private fun ResultView(result: ScanResult, context: Context, onRescan: () -> Uni
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("结果怎么读", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("为什么只有这几个？", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "• 命中规则 ≠ 恶意，只是「值得确认」的信号\n" +
-                            "• 厂商常规遥测、应用商店、推送服务都可能命中中低风险\n" +
-                            "• 重点看：你完全不认识的包名、系统预装却从没用过的\n" +
-                            "• 想拿铁证需要抓包，本工具做不到",
+                        "本工具只列「用户看不见」的组件：\n\n" +
+                            "· 有桌面图标的应用 → 你知道它，不算隐蔽\n" +
+                            "· 你自己装的应用 → 你装的，不算隐蔽\n" +
+                            "· 核心系统组件（系统界面、设置等）→ 跳过\n\n" +
+                            "剩下的才需要核查。命中的规则只代表「值得确认」，" +
+                            "不代表恶意。想拿铁证需要抓包，本工具做不到。",
                         fontSize = 12.sp,
                         lineHeight = 19.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
